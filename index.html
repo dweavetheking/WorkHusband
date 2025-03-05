@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Montserrat:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" integrity="sha512-Qlv6VSKh1gDKGoJbnyA5RMXYcvnpIqhO++MhIM2fStMcGT9i2T//tSwYFlcyoRRDcDZ+TYHpH8azBBCyhpSeqw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         :root {
             --primary-color: #0a1f2e;
@@ -461,6 +462,10 @@
             position: relative;
             border: 3px solid var(--accent-color);
             display: none;
+            /* Make sure dimensions are stable for image capture */
+            width: 500px;
+            height: auto;
+            min-height: 450px;
         }
 
         .certificate::before {
@@ -1099,6 +1104,9 @@
                         <p>Approved Superfan</p>
                     </div>
                 </div>
+                
+                <!-- Invisible canvas element to help with certificate generation -->
+                <canvas id="certificate-canvas" style="display:none;"></canvas>
 
                 <div id="success-message" class="hidden">
                     <p>Congratulations! You've proven yourself a true fan of Torica Tymes' work. Click below to download your certificate!</p>
@@ -1170,6 +1178,19 @@
                     this.classList.add('selected');
                 });
             });
+            
+            // Function to check if html2canvas is ready
+            function checkHtml2Canvas() {
+                if (typeof html2canvas === 'undefined') {
+                    console.log('HTML2Canvas not yet loaded, retrying...');
+                    setTimeout(checkHtml2Canvas, 500);
+                } else {
+                    console.log('HTML2Canvas loaded successfully!');
+                }
+            }
+            
+            // Check if HTML2Canvas loaded properly
+            checkHtml2Canvas();
             
             // Submit Test
             const submitTestBtn = document.getElementById('submit-test');
@@ -1274,45 +1295,113 @@
             const downloadCertificateBtn = document.getElementById('download-certificate');
             const certificateLoading = document.getElementById('certificate-loading');
             
-            downloadCertificateBtn.addEventListener('click', function() {
-                // Show loading spinner
-                certificateLoading.style.display = 'block';
-                downloadCertificateBtn.disabled = true;
-                
-                // Use html2canvas to capture the certificate
-                const certificateElement = document.getElementById('certificate');
-                
-                // Slightly delay to ensure the certificate is rendered properly
-                setTimeout(() => {
-                    html2canvas(certificateElement, {
-                        scale: 2, // Higher scale for better quality
-                        backgroundColor: null,
-                        logging: false
-                    }).then(canvas => {
-                        // Convert canvas to data URL
-                        const imageData = canvas.toDataURL('image/png');
+            // First ensure html2canvas is available
+            if (typeof html2canvas === 'undefined') {
+                console.error('HTML2Canvas library not loaded');
+                downloadCertificateBtn.addEventListener('click', function() {
+                    alert('Certificate generation feature is temporarily unavailable. Please try again later.');
+                });
+            } else {
+                downloadCertificateBtn.addEventListener('click', function() {
+                    // Show loading spinner
+                    certificateLoading.style.display = 'block';
+                    downloadCertificateBtn.disabled = true;
+                    
+                    try {
+                        // Make sure certificate is visible
+                        const certificateElement = document.getElementById('certificate');
+                        certificateElement.style.display = 'block';
                         
-                        // Create download link
-                        const downloadLink = document.createElement('a');
-                        downloadLink.href = imageData;
-                        downloadLink.download = 'FallingForMyWorkHusband_Certificate.png';
+                        // Ensure certificate name is properly set one more time
+                        const readerName = localStorage.getItem('readerName') || 'Superfan';
+                        document.getElementById('certificate-name').textContent = readerName;
                         
-                        // Append to document, click, and remove
-                        document.body.appendChild(downloadLink);
-                        downloadLink.click();
-                        document.body.removeChild(downloadLink);
+                        // Create a simple fallback if HTML2Canvas fails
+                        const createFallbackCertificate = () => {
+                            // Create a simple text version as fallback
+                            const text = `OFFICIAL FAN CERTIFICATE\n\nThis certifies that\n${readerName}\nhas demonstrated exceptional knowledge of the novel\n"FALLING FOR MY WORK HUSBAND"\nby Torica Tymes\n\nApproved Superfan`;
+                            
+                            // Create a blob with the text
+                            const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+                            saveAs(blob, 'FallingForMyWorkHusband_Certificate.txt');
+                            
+                            // Hide loading spinner
+                            certificateLoading.style.display = 'none';
+                            downloadCertificateBtn.disabled = false;
+                        };
                         
-                        // Hide loading spinner
+                        // Add a longer timeout to ensure everything is loaded
+                        setTimeout(() => {
+                            // Options for better quality and performance
+                            const options = {
+                                scale: 2,
+                                backgroundColor: null,
+                                useCORS: true,
+                                allowTaint: true,
+                                onclone: function(clonedDoc) {
+                                    const clonedCert = clonedDoc.getElementById('certificate');
+                                    clonedCert.style.transform = 'none';
+                                    clonedCert.style.display = 'block';
+                                }
+                            };
+                            
+                            html2canvas(certificateElement, options)
+                                .then(canvas => {
+                                    try {
+                                        // Convert to image and download
+                                        if (typeof saveAs !== 'undefined') {
+                                            // Use FileSaver.js if available
+                                            canvas.toBlob(function(blob) {
+                                                saveAs(blob, 'FallingForMyWorkHusband_Certificate.png');
+                                                certificateLoading.style.display = 'none';
+                                                downloadCertificateBtn.disabled = false;
+                                            });
+                                        } else {
+                                            // Fallback to data URL method
+                                            const imageData = canvas.toDataURL('image/png');
+                                            const link = document.createElement('a');
+                                            link.href = imageData;
+                                            link.download = 'FallingForMyWorkHusband_Certificate.png';
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                            certificateLoading.style.display = 'none';
+                                            downloadCertificateBtn.disabled = false;
+                                        }
+                                    } catch (err) {
+                                        console.error('Error saving canvas:', err);
+                                        createFallbackCertificate();
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('HTML2Canvas error:', error);
+                                    createFallbackCertificate();
+                                });
+                        }, 500); // Longer delay for better reliability
+                    } catch (err) {
+                        console.error('Certificate generation error:', err);
+                        alert('There was an error generating your certificate. A simple version will be downloaded instead.');
                         certificateLoading.style.display = 'none';
                         downloadCertificateBtn.disabled = false;
-                    }).catch(error => {
-                        console.error('Error generating certificate:', error);
-                        alert('There was an error generating your certificate. Please try again.');
-                        certificateLoading.style.display = 'none';
-                        downloadCertificateBtn.disabled = false;
-                    });
-                }, 300);
-            });
+                        
+                        // Create simple text certificate as absolute fallback
+                        const readerName = localStorage.getItem('readerName') || 'Superfan';
+                        const text = `OFFICIAL FAN CERTIFICATE\n\nThis certifies that\n${readerName}\nhas demonstrated exceptional knowledge of the novel\n"FALLING FOR MY WORK HUSBAND"\nby Torica Tymes\n\nApproved Superfan`;
+                        const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+                        
+                        if (typeof saveAs !== 'undefined') {
+                            saveAs(blob, 'FallingForMyWorkHusband_Certificate.txt');
+                        } else {
+                            const link = document.createElement('a');
+                            link.href = URL.createObjectURL(blob);
+                            link.download = 'FallingForMyWorkHusband_Certificate.txt';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                    }
+                });
+            }
             
             // Smooth scroll for anchor links
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
